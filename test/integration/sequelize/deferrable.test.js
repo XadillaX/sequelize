@@ -2,7 +2,8 @@
 
 /* jshint -W030 */
 /* jshint -W110 */
-var chai = require('chai')
+var _ = require('lodash')
+  , chai = require('chai')
   , expect = chai.expect
   , assert = chai.assert
   , Support = require(__dirname + '/../support')
@@ -18,7 +19,11 @@ describe(Support.getTestDialectTeaser('Sequelize'), function() {
 
   beforeEach(function () {
     this.run = function (deferrable, options) {
-      var userTableName = 'users_' + config.rand();
+      options = options || {};
+
+      var taskTableName      = options.taskTableName || 'tasks_' + config.rand();
+      var transactionOptions = _.extend({ deferrable: Sequelize.Deferrable.SET_DEFERRED }, options);
+      var userTableName      = 'users_' + config.rand();
 
       var User = this.sequelize.define(
         'User', { name: Sequelize.STRING }, { tableName: userTableName }
@@ -35,7 +40,7 @@ describe(Support.getTestDialectTeaser('Sequelize'), function() {
             referencesDeferrable: deferrable
           }
         }, {
-          tableName: 'tasks_' + config.rand()
+          tableName: taskTableName
         }
       );
 
@@ -43,7 +48,7 @@ describe(Support.getTestDialectTeaser('Sequelize'), function() {
         return Task.sync({ force: true });
       }).then(function () {
         return this.sequelize.transaction(
-          options || { deferrable: Sequelize.Deferrable.ALL_DEFERRED },
+          transactionOptions,
           function (t) {
             return Task
               .create({ title: 'a task', user_id: -1 }, { transaction: t })
@@ -61,31 +66,56 @@ describe(Support.getTestDialectTeaser('Sequelize'), function() {
   });
 
   describe('Deferrable', function () {
-    describe('NOT_DEFERRABLE', function () {
+    describe('NOT', function () {
       it('does not allow the violation of the foreign key constraint', function () {
         return this
-          .run(Sequelize.Deferrable.NOT_DEFERRABLE)
+          .run(Sequelize.Deferrable.NOT)
           .then(assert.fail, function (err) {
             expect(err.name).to.equal('SequelizeForeignKeyConstraintError');
           });
       });
     });
 
-    describe('DEFERRABLE_INITIALLY_IMMEDIATE', function () {
+    describe('INITIALLY_IMMEDIATE', function () {
       it('allows the violation of the foreign key constraint', function () {
         return this
-          .run(Sequelize.Deferrable.DEFERRABLE_INITIALLY_IMMEDIATE)
+          .run(Sequelize.Deferrable.INITIALLY_IMMEDIATE)
           .then(function (task) {
             expect(task.title).to.equal('a task');
             expect(task.user_id).to.equal(1);
           }, assert.fail);
       });
+
+      it('does not allow the violation of the foreign key constraint if the transaction is not deffered', function () {
+        return this
+          .run(Sequelize.Deferrable.NOT, {})
+          .then(assert.fail, function (err) {
+            expect(err.name).to.equal('SequelizeForeignKeyConstraintError');
+          });
+      });
+
+      it('allows the violation of the foreign key constraint if the transaction deferres only the foreign key constraint', function () {
+        var taskTableName = 'tasks_' + config.rand();
+
+        return this
+          .run(Sequelize.Deferrable.INITIALLY_IMMEDIATE, {
+            deferrable: Sequelize.Deferrable.SET_DEFERRED([taskTableName + '_user_id_fkey']),
+            taskTableName: taskTableName
+          })
+          .then(function (task) {
+            expect(task.title).to.equal('a task');
+            expect(task.user_id).to.equal(1);
+          }, function () {
+            console.log(arguments);
+            assert.fail();
+          });
+      });
     });
 
-    describe('DEFERRABLE_INITIALLY_DEFERRED', function () {
+    describe('INITIALLY_DEFERRED', function () {
       it('allows the violation of the foreign key constraint', function () {
         return this
-          .run(Sequelize.Deferrable.DEFERRABLE_INITIALLY_DEFERRED, {})
+          .run(Sequelize.Deferrable.INITIALLY_DEFERRED, {})
           .then(function (task) {
             expect(task.title).to.equal('a task');
             expect(task.user_id).to.equal(1);
