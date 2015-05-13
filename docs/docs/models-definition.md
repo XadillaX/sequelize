@@ -137,6 +137,25 @@ sequelize.define('model', {
 })
 ```
 
+## Deferrable
+
+When you specify a foreign key column it is optionally possible to declare the deferrable
+type in PostgreSQL. The following options are available:
+
+```js
+// Defer all foreign key constraint check to the end of a transaction
+Sequelize.Deferrable.INITIALLY_DEFERRED
+
+// Immediately check the foreign key constraints
+Sequelize.Deferrable.INITIALLY_IMMEDIATE
+
+// Don't defer the checks at all
+Sequelize.Deferrable.NOT
+```
+
+The last option is the default in PostgreSQL and won't allow you to dynamically change
+the rule in a transaction. See [the transaction section](docs/transactions/#options) for further information.
+
 ## Getters & setters
 
 It is possible to define 'object-property' getters and setter functions on your models, these can be used both for 'protecting' properties that map to database fields and for defining 'pseudo' properties.
